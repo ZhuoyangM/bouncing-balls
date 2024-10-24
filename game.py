@@ -1,26 +1,29 @@
 """
-    Bouncing ball game - version 1.0
+    Bouncing ball game - version 2.0 with AI agent
 """
 import pygame
 import random
 import math
 
-# Initialize pygame
-pygame.init()
 
 class Game:
     def __init__(self):
         self.screen = pygame.display.set_mode((800, 600))
         pygame.display.set_caption("Bouncing Balls Game")
+        
         self.collector_width = 100
         self.collector_height = 20
+        self.collector_pos = 350
+        self.collector_speed = 8
+
         self.balls = []
-        self.running_time = 90  # Total running time for one round (90s)
-        self.start_time = pygame.time.get_ticks()  # Start time
         self.colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]  # Ball colors
         self.ball_count = [5, 5, 5]  # Fixed number of balls for each color
-        self.collector_pos = 350
-        self.collector_speed = 8  # Collector movement speed
+
+        self.running_time = 90  # Total running time for one round (90s)
+        self.start_time = pygame.time.get_ticks()  # Start time
+        
+       
         self.moving_left = False
         self.moving_right = False
         self.score = [0, 0, 0]  # To keep track of collected balls
@@ -28,6 +31,7 @@ class Game:
         self.result_font = pygame.font.Font(None, 50)
         self.create_balls()
         self.game_over = False
+        self.running = True
         self.result_message = ""
 
     def create_balls(self):
@@ -61,29 +65,74 @@ class Game:
             ball1['velocity_x'], ball2['velocity_x'] = ball2['velocity_x'], ball1['velocity_x']
             ball1['velocity_y'], ball2['velocity_y'] = ball2['velocity_y'], ball1['velocity_y']
 
-    def run(self):
-        clock = pygame.time.Clock()
-        running = True
+    def handle_keyboard_event(self, event, mode: str):
+        """Handle a single keyboard event based on mode"""
+        if event.type == pygame.QUIT:
+            self.running = False
+        if mode == "2":
+            return
+        if not self.game_over:
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_LEFT:
+                    self.moving_left = True
+                if event.key == pygame.K_RIGHT:
+                    self.moving_right = True
+            if event.type == pygame.KEYUP:
+                if event.key == pygame.K_LEFT:
+                    self.moving_left = False
+                if event.key == pygame.K_RIGHT:
+                    self.moving_right = False
+        elif event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN:
+            self.reset_game()
+    
+    def update_collector_pos(self, mode: str):
+        """Update collector's position based on mode"""
+        if mode == "1":
+            if self.moving_left:
+                self.collector_pos -= self.collector_speed
+            if self.moving_right:
+                self.collector_pos += self.collector_speed
+            self.collector_pos = max(0, min(self.collector_pos, 800 - self.collector_width))
+        else:
+            self.AI_update_collector_position()
 
-        while running:
+
+    def AI_find_nearest_ball(self):
+        """Find the nearest ball that is falling towards the collector"""
+        nearest_ball = None
+        min_distance = float('inf')
+        for ball in self.balls:
+            if ball['velocity_y'] > 0:  # Only consider balls moving downwards
+                distance = abs(ball['y'] - 580)  # Distance to collector
+                if distance < min_distance:
+                    nearest_ball = ball
+                    min_distance = distance
+        return nearest_ball
+
+    def AI_update_collector_position(self):
+        """Move the collector to align with the nearest falling ball"""
+        nearest_ball = self.AI_find_nearest_ball()
+        if nearest_ball:
+            ball_center_x = nearest_ball['x']
+            collector_center_x = self.collector_pos + self.collector_width // 2
+
+            if collector_center_x < ball_center_x:
+                self.collector_pos += self.collector_speed
+            elif collector_center_x > ball_center_x:
+                self.collector_pos -= self.collector_speed
+
+            self.collector_pos = max(0, min(self.collector_pos, 800 - self.collector_width))
+    
+    
+
+    def run(self, mode: str):
+        clock = pygame.time.Clock()
+
+        while self.running:
             self.screen.fill((0, 0, 0))
 
             for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    running = False
-                if not self.game_over:
-                    if event.type == pygame.KEYDOWN:
-                        if event.key == pygame.K_LEFT:
-                            self.moving_left = True
-                        if event.key == pygame.K_RIGHT:
-                            self.moving_right = True
-                    if event.type == pygame.KEYUP:
-                        if event.key == pygame.K_LEFT:
-                            self.moving_left = False
-                        if event.key == pygame.K_RIGHT:
-                            self.moving_right = False
-                elif event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN:
-                    self.reset_game()
+                self.handle_keyboard_event(event, mode)
 
             if not self.game_over:
                 elapsed_time = (pygame.time.get_ticks() - self.start_time) / 1000
@@ -111,11 +160,7 @@ class Game:
                 self.screen.blit(collect_text, (10, 10))
 
                 # Move the collector
-                if self.moving_left:
-                    self.collector_pos -= self.collector_speed
-                if self.moving_right:
-                    self.collector_pos += self.collector_speed
-                self.collector_pos = max(0, min(self.collector_pos, 800 - self.collector_width))
+                self.update_collector_pos(mode)
 
                 # Draw the collector
                 pygame.draw.rect(self.screen, (255, 255, 255),
@@ -172,6 +217,7 @@ class Game:
 
     def reset_game(self):
         """Reset the game state for a new round"""
+        ## TODO: Restart should allow users to select mode again
         self.balls = []
         self.score = [0, 0, 0]
         self.start_time = pygame.time.get_ticks()
@@ -179,6 +225,11 @@ class Game:
         self.create_balls()
 
 if __name__ == "__main__":
+    mode = ""
+    while not (mode == "1" or mode == "2"):
+        mode = input("Please enter the game mode: (1 for Human, 2 for AI simulation)").strip()
+    
+    pygame.init()
     game = Game()
-    game.run()
+    game.run(mode)
     pygame.quit()
